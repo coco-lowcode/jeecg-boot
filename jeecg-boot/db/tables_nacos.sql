@@ -7,7 +7,7 @@ use `nacos`;
  Source Server         : mysql5.7
  Source Server Type    : MySQL
  Source Server Version : 50727
- Source Host           : 127.0.0.1:3306
+ Source Host           : 127.0.0.1:3307
  Source Schema         : nacos
 
  Target Server Type    : MySQL

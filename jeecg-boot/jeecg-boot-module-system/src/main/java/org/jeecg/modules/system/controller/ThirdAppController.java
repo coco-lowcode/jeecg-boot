@@ -19,6 +19,7 @@ import java.util.Map;
 
 /**
  * 第三方App对接
+ * @author: jeecg-boot
  */
 @Slf4j
 @RestController("thirdAppController")
@@ -38,7 +39,7 @@ public class ThirdAppController {
      */
     @GetMapping("/getEnabledType")
     public Result getEnabledType() {
-        Map<String, Boolean> enabledMap = new HashMap<>();
+        Map<String, Boolean> enabledMap = new HashMap(5);
         enabledMap.put("wechatEnterprise", thirdAppConfig.isWechatEnterpriseEnabled());
         enabledMap.put("dingtalk", thirdAppConfig.isDingtalkEnabled());
         return Result.OK(enabledMap);
@@ -91,8 +92,12 @@ public class ThirdAppController {
     @GetMapping("/sync/wechatEnterprise/depart/toApp")
     public Result syncWechatEnterpriseDepartToApp(@RequestParam(value = "ids", required = false) String ids) {
         if (thirdAppConfig.isWechatEnterpriseEnabled()) {
-            boolean flag = wechatEnterpriseService.syncLocalDepartmentToThirdApp(ids);
-            return flag ? Result.OK("同步成功", null) : Result.error("同步失败");
+            SyncInfoVo syncInfo = wechatEnterpriseService.syncLocalDepartmentToThirdApp(ids);
+            if (syncInfo.getFailInfo().size() == 0) {
+                return Result.OK("同步成功", null);
+            } else {
+                return Result.error("同步失败", syncInfo);
+            }
         }
         return Result.error("企业微信同步功能已禁用");
     }
@@ -125,8 +130,12 @@ public class ThirdAppController {
     @GetMapping("/sync/dingtalk/depart/toApp")
     public Result syncDingtalkDepartToApp(@RequestParam(value = "ids", required = false) String ids) {
         if (thirdAppConfig.isDingtalkEnabled()) {
-            boolean flag = dingtalkService.syncLocalDepartmentToThirdApp(ids);
-            return flag ? Result.OK("同步成功", null) : Result.error("同步失败");
+            SyncInfoVo syncInfo = dingtalkService.syncLocalDepartmentToThirdApp(ids);
+            if (syncInfo.getFailInfo().size() == 0) {
+                return Result.OK("同步成功", null);
+            } else {
+                return Result.error("同步失败", syncInfo);
+            }
         }
         return Result.error("钉钉同步功能已禁用");
     }
@@ -237,7 +246,7 @@ public class ThirdAppController {
         // 第三方app的类型
         String app = params.getString("app");
         // 消息id
-        String msg_task_id = params.getString("msg_task_id");
+        String msgTaskId = params.getString("msg_task_id");
 
         if (ThirdAppConfig.WECHAT_ENTERPRISE.equals(app)) {
             if (thirdAppConfig.isWechatEnterpriseEnabled()) {
@@ -246,7 +255,7 @@ public class ThirdAppController {
             return Result.error("企业微信已被禁用");
         } else if (ThirdAppConfig.DINGTALK.equals(app)) {
             if (thirdAppConfig.isDingtalkEnabled()) {
-                Response<JSONObject> response = dingtalkService.recallMessageResponse(msg_task_id);
+                Response<JSONObject> response = dingtalkService.recallMessageResponse(msgTaskId);
                 if (response.isSuccess()) {
                     return Result.OK("撤回成功", response);
                 } else {

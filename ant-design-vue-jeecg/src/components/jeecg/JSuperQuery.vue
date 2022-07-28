@@ -29,6 +29,7 @@
     @cancel="handleCancel"
     :mask="false"
     :fullscreen="izMobile"
+    draggable
     class="j-super-query-modal"
     style="top:5%;max-height: 95%;"
   >
@@ -103,6 +104,8 @@
               <a-col :md="8" :xs="24" style="margin-bottom: 12px;">
                 <!-- 下拉搜索 -->
                 <j-search-select-tag v-if="item.type==='sel_search'" v-model="item.val" :dict="getDictInfo(item)" placeholder="请选择"/>
+                <!-- 下拉框 -->
+                <j-search-select-tag v-else-if="item.type==='list' && item.dictTable" v-model="item.val" :dict="getDictInfo(item)" placeholder="请选择"/>
                 <!-- 下拉多选 -->
                 <template v-else-if="item.type==='list_multi'">
                   <j-multi-select-tag v-if="item.options" v-model="item.val" :options="item.options" placeholder="请选择"/>
@@ -136,14 +139,14 @@
                   v-else-if="item.type === 'select-user' || item.type === 'sel_user'"
                   v-model="item.val"
                   :buttons="false"
-                  :multiple="false"
+                  :multiple="allowMultiple(item)"
                   placeholder="请选择用户"
                   :returnKeys="['id', item.customReturnField || 'username']"
                 />
                 <j-select-depart
                   v-else-if="item.type === 'select-depart' || item.type === 'sel_depart'"
                   v-model="item.val"
-                  :multi="false"
+                  :multi="allowMultiple(item)"
                   placeholder="请选择部门"
                   :customReturnField="item.customReturnField || 'id'"
                 />
@@ -161,8 +164,10 @@
                 <a-time-picker v-else-if="item.type==='time'" :value="item.val ? moment(item.val,'HH:mm:ss') : null" format="HH:mm:ss" style="width: 100%" @change="(time,value)=>item.val=value"/>
                 <a-input-number v-else-if=" item.type=='int'||item.type=='number' " style="width: 100%" placeholder="请输入数值" v-model="item.val"/>
                 <a-select v-else-if="item.type=='switch'" placeholder="请选择" v-model="item.val">
-                  <a-select-option value="Y">是</a-select-option>
-                  <a-select-option value="N">否</a-select-option>
+                  <!-- update-begin-author:taoyan for: VUEN-242【online表单 高级查询】开关组件设置扩展参数为[0,1] 时，高级查询选择后查询仍然是Y/N -->
+                  <a-select-option :value="item.extendOption[0]">是</a-select-option>
+                  <a-select-option :value="item.extendOption[1]">否</a-select-option>
+                  <!-- update-end-author:taoyan for: VUEN-242【online表单 高级查询】开关组件设置扩展参数为[0,1] 时，高级查询选择后查询仍然是Y/N -->
                 </a-select>
                 <a-input v-else v-model="item.val" placeholder="请输入值"/>
               </a-col>
@@ -331,7 +336,12 @@
                 let child = { ...item2 }
                 child.label = child.label || child.text
                 child.label = data.label + '-' + child.label
-                child.value = data.value + ',' + child.value
+                // update--begin--author:sunjianlei-----date:20220121------for：【JTC-1167】【表单设计器】高级查询，一对一字段查询不好使
+                // 是否仅包含字段名，不需要拼接子表表名
+                if (!data.onlyFieldName) {
+                  child.value = data.value + ',' + child.value
+                }
+                // update--end--author:sunjianlei-----date:20220121------for：【JTC-1167】【表单设计器】高级查询，一对一字段查询不好使
                 child.val = ''
                 return child
               })
@@ -379,7 +389,7 @@
           this.$message.warn("不能查询空条件")
         }
       },
-      emitCallback(event = {}) {
+      emitCallback(event = {}, loadStatus = true) {
         let { params = [], matchType = this.matchType } = event
         this.superQueryFlag = (params && params.length > 0)
         for (let param of params) {
@@ -388,7 +398,7 @@
           }
         }
         console.debug('---高级查询参数--->', { params, matchType })
-        this.$emit(this.callback, params, matchType)
+        this.$emit(this.callback, params, matchType, loadStatus)
       },
       handleCancel() {
         this.close()
@@ -419,18 +429,29 @@
         item['dictCode'] = dictCode
         item['dictTable'] = dictTable
         item['dictText'] = dictText
+        //update-begin-author:taoyan for: VUEN-242【online表单 高级查询】开关组件设置扩展参数为[0,1] 时，高级查询选择后查询仍然是Y/N
+        item['extendOption'] = node.dataRef.extendOption || ['Y', 'N']
+        //update-begin-author:taoyan for: VUEN-242【online表单 高级查询】开关组件设置扩展参数为[0,1] 时，高级查询选择后查询仍然是Y/N
         item['customReturnField'] = customReturnField
         if (popup) {
           item['popup'] = popup
+        }
+        // 格式化字符串，一般用于高级查询的日期格式处理
+        if (node.dataRef.formatStr) {
+          item['formatStr'] = node.dataRef.formatStr
         }
         this.$set(item, 'val', undefined)
       },
       handleOpen() {
         this.show()
       },
+      handleOutReset(loadStaus=true) {
+        this.resetLine()
+        this.emitCallback({}, loadStaus)
+      },
       handleReset() {
         this.resetLine()
-        this.emitCallback()
+        this.emitCallback({}, true)
       },
       handleSave() {
         let queryParams = this.removeEmptyObject(this.queryParamsModel)

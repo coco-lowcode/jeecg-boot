@@ -18,6 +18,7 @@ import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.aspect.annotation.PermissionData;
 import org.jeecg.common.constant.CommonConstant;
+import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.common.system.api.ISysBaseAPI;
 import org.jeecg.modules.base.service.BaseCommonService;
 import org.jeecg.common.system.query.QueryGenerator;
@@ -42,7 +43,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -61,9 +61,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/sys/user")
 public class SysUserController {
-	@Autowired
-	private ISysBaseAPI sysBaseAPI;
-	
+
 	@Autowired
 	private ISysUserService sysUserService;
 
@@ -91,7 +89,7 @@ public class SysUserController {
     @Value("${jeecg.path.upload}")
     private String upLoadPath;
 
-    @Resource
+    @Autowired
     private BaseCommonService baseCommonService;
 
     /**
@@ -108,12 +106,44 @@ public class SysUserController {
 									  @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,HttpServletRequest req) {
 		Result<IPage<SysUser>> result = new Result<IPage<SysUser>>();
 		QueryWrapper<SysUser> queryWrapper = QueryGenerator.initQueryWrapper(user, req.getParameterMap());
-    	//TODO 外部模拟登陆临时账号，列表不显示
+        
+        //update-begin-Author:wangshuai--Date:20211119--for:【vue3】通过部门id查询用户，通过code查询id
+        //部门ID
+        String departId = req.getParameter("departId");
+        if(oConvertUtils.isNotEmpty(departId)){
+            LambdaQueryWrapper<SysUserDepart> query = new LambdaQueryWrapper<>();
+            query.eq(SysUserDepart::getDepId,departId);
+            List<SysUserDepart> list = sysUserDepartService.list(query);
+            List<String> userIds = list.stream().map(SysUserDepart::getUserId).collect(Collectors.toList());
+            //update-begin---author:wangshuai ---date:20220322  for：[issues/I4XTYB]查询用户时，当部门id 下没有分配用户时接口报错------------
+            if(oConvertUtils.listIsNotEmpty(userIds)){
+                queryWrapper.in("id",userIds);
+            }else{
+                return Result.OK();
+            }
+            //update-end---author:wangshuai ---date:20220322  for：[issues/I4XTYB]查询用户时，当部门id 下没有分配用户时接口报错------------
+        }
+        //用户ID
+        String code = req.getParameter("code");
+        if(oConvertUtils.isNotEmpty(code)){
+            queryWrapper.in("id",Arrays.asList(code.split(",")));
+            pageSize = code.split(",").length;
+        }
+        //update-end-Author:wangshuai--Date:20211119--for:【vue3】通过部门id查询用户，通过code查询id
+
+        //update-begin-author:taoyan--date:20220104--for: JTC-372 【用户冻结问题】 online授权、用户组件，选择用户都能看到被冻结的用户
+        String status = req.getParameter("status");
+        if(oConvertUtils.isNotEmpty(status)){
+            queryWrapper.eq("status", Integer.parseInt(status));
+        }
+        //update-end-author:taoyan--date:20220104--for: JTC-372 【用户冻结问题】 online授权、用户组件，选择用户都能看到被冻结的用户
+
+        //TODO 外部模拟登陆临时账号，列表不显示
         queryWrapper.ne("username","_reserve_user_external");
 		Page<SysUser> page = new Page<SysUser>(pageNo, pageSize);
 		IPage<SysUser> pageList = sysUserService.page(page, queryWrapper);
 
-		//批量查询用户的所属部门
+        //批量查询用户的所属部门
         //step.1 先拿到全部的 useids
         //step.2 通过 useids，一次性查询用户的所属部门名字
         List<String> userIds = pageList.getRecords().stream().map(SysUser::getId).collect(Collectors.toList());
@@ -130,7 +160,7 @@ public class SysUserController {
 	}
 
     //@RequiresRoles({"admin"})
-    //@RequiresPermissions("user:add")
+    //Permissions("system:user:add")
 	@RequestMapping(value = "/add", method = RequestMethod.POST)
 	public Result<SysUser> add(@RequestBody JSONObject jsonObject) {
 		Result<SysUser> result = new Result<SysUser>();
@@ -145,8 +175,11 @@ public class SysUserController {
 			user.setPassword(passwordEncode);
 			user.setStatus(1);
 			user.setDelFlag(CommonConstant.DEL_FLAG_0);
+			//用户表字段org_code不能在这里设置他的值
+            user.setOrgCode(null);
 			// 保存用户走一个service 保证事务
 			sysUserService.saveUser(user, selectedRoles, selectedDeparts);
+            baseCommonService.addLog("添加用户，username： " +user.getUsername() ,CommonConstant.LOG_TYPE_2, 2);
 			result.success("添加成功！");
 		} catch (Exception e) {
 			log.error(e.getMessage(), e);
@@ -156,13 +189,13 @@ public class SysUserController {
 	}
 
     //@RequiresRoles({"admin"})
-    //@RequiresPermissions("user:edit")
-	@RequestMapping(value = "/edit", method = RequestMethod.PUT)
+    //Permissions("system:user:edit")
+	@RequestMapping(value = "/edit", method = {RequestMethod.PUT,RequestMethod.POST})
 	public Result<SysUser> edit(@RequestBody JSONObject jsonObject) {
 		Result<SysUser> result = new Result<SysUser>();
 		try {
 			SysUser sysUser = sysUserService.getById(jsonObject.getString("id"));
-			baseCommonService.addLog("编辑用户，id： " +jsonObject.getString("id") ,CommonConstant.LOG_TYPE_2, 2);
+			baseCommonService.addLog("编辑用户，username： " +sysUser.getUsername() ,CommonConstant.LOG_TYPE_2, 2);
 			if(sysUser==null) {
 				result.error500("未找到对应实体");
 			}else {
@@ -172,6 +205,12 @@ public class SysUserController {
 				user.setPassword(sysUser.getPassword());
 				String roles = jsonObject.getString("selectedroles");
                 String departs = jsonObject.getString("selecteddeparts");
+                if(oConvertUtils.isEmpty(departs)){
+                    //vue3.0前端只传递了departIds
+                    departs=user.getDepartIds();
+                }
+                //用户表字段org_code不能在这里设置他的值
+                user.setOrgCode(null);
                 // 修改用户走一个service 保证事务
 				sysUserService.editUser(user, roles, departs);
 				result.success("修改成功!");
@@ -306,6 +345,10 @@ public class SysUserController {
             return Result.error("用户不存在！");
         }
         sysUser.setId(u.getId());
+        //update-begin---author:wangshuai ---date:20220316  for：[VUEN-234]修改密码添加敏感日志------------
+        LoginUser loginUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        baseCommonService.addLog("修改用户 "+sysUser.getUsername()+" 的密码，操作人： " +loginUser.getUsername() ,CommonConstant.LOG_TYPE_2, 2);
+        //update-end---author:wangshuai ---date:20220316  for：[VUEN-234]修改密码添加敏感日志------------
         return sysUserService.changePassword(sysUser);
     }
 
@@ -401,8 +444,13 @@ public class SysUserController {
             @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,
             @RequestParam(name = "departId", required = false) String departId,
             @RequestParam(name="realname",required=false) String realname,
-            @RequestParam(name="username",required=false) String username) {
-        IPage<SysUser> pageList = sysUserDepartService.queryDepartUserPageList(departId, username, realname, pageSize, pageNo);
+            @RequestParam(name="username",required=false) String username,
+            @RequestParam(name="id",required = false) String id) {
+        //update-begin-author:taoyan date:2022-7-14 for: VUEN-1702【禁止问题】sql注入漏洞
+        String[] arr = new String[]{departId, realname, username, id};
+        SqlInjectionUtil.filterContent(arr, SymbolConstant.SINGLE_QUOTATION_MARK);
+        //update-end-author:taoyan date:2022-7-14 for: VUEN-1702【禁止问题】sql注入漏洞
+        IPage<SysUser> pageList = sysUserDepartService.queryDepartUserPageList(departId, username, realname, pageSize, pageNo,id);
         return Result.OK(pageList);
     }
 
@@ -412,6 +460,8 @@ public class SysUserController {
      * @param request
      * @param sysUser
      */
+    //@RequiresRoles({"admin"})
+    //@RequiresPermissions("system:user:export")
     @RequestMapping(value = "/exportXls")
     public ModelAndView exportXls(SysUser sysUser,HttpServletRequest request) {
         // Step.1 组装查询条件
@@ -445,7 +495,7 @@ public class SysUserController {
      * @return
      */
     //@RequiresRoles({"admin"})
-    //@RequiresPermissions("user:import")
+    //Permissions("system:user:import")
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response)throws IOException {
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
@@ -488,6 +538,8 @@ public class SysUserController {
                             errorMessage.add("第 " + lineNumber + " 行：手机号已经存在，忽略导入。");
                         } else if (message.contains(CommonConstant.SQL_INDEX_UNIQ_SYS_USER_EMAIL)) {
                             errorMessage.add("第 " + lineNumber + " 行：电子邮件已经存在，忽略导入。");
+                        }  else if (message.contains(CommonConstant.SQL_INDEX_UNIQ_SYS_USER)) {
+                            errorMessage.add("第 " + lineNumber + " 行：违反表唯一性约束。");
                         } else {
                             errorMessage.add("第 " + lineNumber + " 行：未知错误，忽略导入");
                             log.error(e.getMessage(), e);
@@ -554,6 +606,10 @@ public class SysUserController {
 		if(user==null) {
 			return Result.error("用户不存在！");
 		}
+        //update-begin---author:wangshuai ---date:20220316  for：[VUEN-234]修改密码添加敏感日志------------
+        LoginUser loginUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        baseCommonService.addLog("修改密码，username： " +loginUser.getUsername() ,CommonConstant.LOG_TYPE_2, 2);
+        //update-end---author:wangshuai ---date:20220316  for：[VUEN-234]修改密码添加敏感日志------------
 		return sysUserService.resetPassword(username,oldpassword,password,confirmpassword);
 	}
 
@@ -850,7 +906,7 @@ public class SysUserController {
         try {
         	LoginUser sysUser = (LoginUser)SecurityUtils.getSubject().getPrincipal();
             List<SysDepart> list = this.sysDepartService.queryUserDeparts(sysUser.getId());
-            Map<String,Object> map = new HashMap<String,Object>();
+            Map<String,Object> map = new HashMap(5);
             map.put("list", list);
             map.put("orgCode", sysUser.getOrgCode());
             result.setSuccess(true);
@@ -998,7 +1054,7 @@ public class SysUserController {
 		LambdaQueryWrapper<SysUser> query = new LambdaQueryWrapper<>();
         query.eq(SysUser::getPhone,phone);
         SysUser user = sysUserService.getOne(query);
-        Map<String,String> map = new HashMap<>();
+        Map<String,String> map = new HashMap(5);
         map.put("smscode",smscode);
         map.put("username",user.getUsername());
         result.setResult(map);
@@ -1044,6 +1100,9 @@ public class SysUserController {
             String passwordEncode = PasswordUtil.encrypt(sysUser.getUsername(), password, salt);
             sysUser.setPassword(passwordEncode);
             this.sysUserService.updateById(sysUser);
+            //update-begin---author:wangshuai ---date:20220316  for：[VUEN-234]密码重置添加敏感日志------------
+            baseCommonService.addLog("重置 "+username+" 的密码，操作人： " +sysUser.getUsername() ,CommonConstant.LOG_TYPE_2, 2);
+            //update-end---author:wangshuai ---date:20220316  for：[VUEN-234]密码重置添加敏感日志------------
             result.setSuccess(true);
             result.setMessage("密码重置完成！");
             return result;
@@ -1183,7 +1242,7 @@ public class SysUserController {
      * @param jsonObject
      * @return
      */
-    @RequestMapping(value = "/appEdit", method = RequestMethod.PUT)
+    @RequestMapping(value = "/appEdit", method = {RequestMethod.PUT,RequestMethod.POST})
     public Result<SysUser> appEdit(HttpServletRequest request,@RequestBody JSONObject jsonObject) {
         Result<SysUser> result = new Result<SysUser>();
         try {
@@ -1220,6 +1279,15 @@ public class SysUserController {
                     sysUser.setPhone(phone);
                 }
                 if(StringUtils.isNotBlank(email)){
+                    //update-begin---author:wangshuai ---date:20220708  for：[VUEN-1528]积木官网邮箱重复，应该提示准确------------
+                    LambdaQueryWrapper<SysUser> emailQuery = new LambdaQueryWrapper<>();
+                    emailQuery.eq(SysUser::getEmail,email);
+                    long count = sysUserService.count(emailQuery);
+                    if (!email.equals(sysUser.getEmail()) && count!=0) {
+                        result.error500("保存失败，邮箱已存在!");
+                        return result;
+                    }
+                    //update-end---author:wangshuai ---date:20220708  for：[VUEN-1528]积木官网邮箱重复，应该提示准确--------------
                     sysUser.setEmail(email);
                 }
                 if(null != birthday){
@@ -1230,7 +1298,7 @@ public class SysUserController {
             }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            result.error500("操作失败!");
+            result.error500("保存失败!");
         }
         return result;
     }
@@ -1265,7 +1333,7 @@ public class SysUserController {
     @GetMapping("/queryChildrenByUsername")
     public Result queryChildrenByUsername(@RequestParam("userId") String userId) {
         //获取用户信息
-        Map<String,Object> map=new HashMap<String,Object>();
+        Map<String,Object> map=new HashMap(5);
         SysUser sysUser = sysUserService.getById(userId);
         String username = sysUser.getUsername();
         Integer identity = sysUser.getUserIdentity();
@@ -1301,7 +1369,9 @@ public class SysUserController {
      * @return
      */
     @GetMapping("/appQueryUser")
-    public Result<List<SysUser>> appQueryUser(@RequestParam(name = "keyword", required = false) String keyword) {
+    public Result<List<SysUser>> appQueryUser(@RequestParam(name = "keyword", required = false) String keyword,
+                                              @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
+                                              @RequestParam(name="pageSize", defaultValue="10") Integer pageSize) {
         Result<List<SysUser>> result = new Result<List<SysUser>>();
         LambdaQueryWrapper<SysUser> queryWrapper =new LambdaQueryWrapper<SysUser>();
         //TODO 外部模拟登陆临时账号，列表不显示
@@ -1309,18 +1379,19 @@ public class SysUserController {
         if(StringUtils.isNotBlank(keyword)){
             queryWrapper.and(i -> i.like(SysUser::getUsername, keyword).or().like(SysUser::getRealname, keyword));
         }
-        List<SysUser> list = sysUserService.list(queryWrapper);
+        Page<SysUser> page = new Page<>(pageNo, pageSize);
+        IPage<SysUser> pageList = this.sysUserService.page(page, queryWrapper);
         //批量查询用户的所属部门
         //step.1 先拿到全部的 useids
         //step.2 通过 useids，一次性查询用户的所属部门名字
-        List<String> userIds = list.stream().map(SysUser::getId).collect(Collectors.toList());
+        List<String> userIds = pageList.getRecords().stream().map(SysUser::getId).collect(Collectors.toList());
         if(userIds!=null && userIds.size()>0){
             Map<String,String>  useDepNames = sysUserService.getDepNamesByUserIds(userIds);
-            list.forEach(item->{
+            pageList.getRecords().forEach(item->{
                 item.setOrgCodeTxt(useDepNames.get(item.getId()));
             });
         }
-        result.setResult(list);
+        result.setResult(pageList.getRecords());
         return result;
     }
 
@@ -1370,6 +1441,9 @@ public class SysUserController {
     @GetMapping("/getMultiUser")
     public List<SysUser> getMultiUser(SysUser sysUser){
         QueryWrapper<SysUser> queryWrapper = QueryGenerator.initQueryWrapper(sysUser, null);
+        //update-begin---author:wangshuai ---date:20220104  for：[JTC-297]已冻结用户仍可设置为代理人------------
+        queryWrapper.eq("status",Integer.parseInt(CommonConstant.STATUS_1));
+        //update-end---author:wangshuai ---date:20220104  for：[JTC-297]已冻结用户仍可设置为代理人------------
         List<SysUser> ls = this.sysUserService.list(queryWrapper);
         for(SysUser user: ls){
             user.setPassword(null);

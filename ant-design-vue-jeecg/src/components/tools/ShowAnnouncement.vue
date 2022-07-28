@@ -1,3 +1,4 @@
+import xss from "xss"
 <template>
   <j-modal
     :title="title"
@@ -23,6 +24,8 @@
 </template>
 
 <script>
+  import {getUserList} from '@/api/api'
+  import xss from 'xss'
   export default {
     name: "SysAnnouncementModal",
     components: {
@@ -59,7 +62,21 @@
     },
     methods: {
       detail (record) {
+        //update-begin---author:wangshuai ---date:20220107  for：将其它页面传递过来的用户名改成用户真实姓名
+        if(record.sender){
+          getUserList({"username":record.sender}).then((res) =>{
+            if(res.success && res.result.records.length>0){
+                record.sender = res.result.records[0].realname
+            }
+          })
+        }
+        //update-end---author:wangshuai ---date:20220107  for：将其它页面传递过来的用户名改成用户真实姓名
         this.visible = true;
+        //update-begin-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
+        if(record.msgContent){
+          record.msgContent = xss(record.msgContent)
+        }
+        //update-end-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
         this.record = record;
       },
       handleCancel () {

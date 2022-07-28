@@ -1,13 +1,13 @@
 <template>
   <a-drawer
-    :title="title"
-    :maskClosable="true"
-    :width="drawerWidth"
-    placement="right"
-    :closable="true"
-    @close="handleCancel"
-    :visible="visible"
-    style="height: 100%;overflow: auto;padding-bottom: 53px;">
+          :title="title"
+          :maskClosable="true"
+          :width="drawerWidth"
+          placement="right"
+          :closable="true"
+          @close="handleCancel"
+          :visible="visible"
+          style="height: 100%;">
 
     <template slot="title">
       <div style="width: 100%;">
@@ -30,7 +30,7 @@
           <a-form-model-item label="登录密码" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="password" >
             <a-input type="password" placeholder="请输入登录密码" v-model="model.password" />
           </a-form-model-item>
-  
+
           <a-form-model-item label="确认密码" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="confirmpassword" >
             <a-input type="password" @blur="handleConfirmBlur" placeholder="请重新输入登录密码" v-model="model.confirmpassword"/>
           </a-form-model-item>
@@ -44,16 +44,20 @@
           <a-input placeholder="请输入工号" v-model="model.workNo" />
         </a-form-model-item>
 
+        <a-form-model-item label="手机号码" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="phone">
+          <a-input placeholder="请输入手机号码" v-model="model.phone" />
+        </a-form-model-item>
+
         <a-form-model-item label="职务" :labelCol="labelCol" :wrapperCol="wrapperCol">
           <j-select-position placeholder="请选择职务" :multiple="false" v-model="model.post"/>
         </a-form-model-item>
 
         <a-form-model-item label="角色分配" :labelCol="labelCol" :wrapperCol="wrapperCol" v-show="!roleDisabled" >
           <j-multi-select-tag
-            :disabled="disableSubmit"
-            v-model="model.selectedroles"
-            :options="rolesOptions"
-            placeholder="请选择角色">
+                  :disabled="disableSubmit"
+                  v-model="model.selectedroles"
+                  :options="rolesOptions"
+                  placeholder="请选择角色">
           </j-multi-select-tag>
         </a-form-model-item>
 
@@ -65,10 +69,10 @@
         <!--租户分配-->
         <a-form-model-item label="租户分配" :labelCol="labelCol" :wrapperCol="wrapperCol" v-show="!departDisabled">
           <j-multi-select-tag
-            :disabled="disableSubmit"
-            v-model="model.relTenantIds"
-            :options="tenantsOptions"
-            placeholder="请选择租户">
+                  :disabled="disableSubmit"
+                  v-model="model.relTenantIds"
+                  :options="tenantsOptions"
+                  placeholder="请选择租户">
           </j-multi-select-tag>
         </a-form-model-item>
 
@@ -78,12 +82,12 @@
             <a-radio :value="2">上级</a-radio>
           </a-radio-group>
         </a-form-model-item>
-        <a-form-model-item label="负责部门" :labelCol="labelCol" :wrapperCol="wrapperCol"  v-if="departIdShow==true">
+        <a-form-model-item label="负责部门" :labelCol="labelCol" :wrapperCol="wrapperCol"  v-show="departIdShow==true">
           <j-multi-select-tag
-            :disabled="disableSubmit"
-            v-model="model.departIds"
-            :options="nextDepartOptions"
-            placeholder="请选择负责部门">
+                  :disabled="disableSubmit"
+                  v-model="model.departIds"
+                  :options="nextDepartOptions"
+                  placeholder="请选择负责部门">
           </j-multi-select-tag>
         </a-form-model-item>
 
@@ -93,13 +97,13 @@
 
         <a-form-model-item label="生日" :labelCol="labelCol" :wrapperCol="wrapperCol">
           <a-date-picker
-            style="width: 100%"
-            placeholder="请选择生日"
-            v-model="model.birthday"
-            :format="dateFormat"
-            :getCalendarContainer="node => node.parentNode"/>
+                  style="width: 100%"
+                  placeholder="请选择生日"
+                  v-model="model.birthday"
+                  :format="dateFormat"
+                  :getCalendarContainer="node => node.parentNode"/>
         </a-form-model-item>
-     
+
         <a-form-model-item label="性别" :labelCol="labelCol" :wrapperCol="wrapperCol">
           <a-select  v-model="model.sex"  placeholder="请选择性别" :getPopupContainer= "(target) => target.parentNode">
             <a-select-option :value="1">男</a-select-option>
@@ -109,10 +113,6 @@
 
         <a-form-model-item label="邮箱" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="email">
           <a-input placeholder="请输入邮箱" v-model="model.email" />
-        </a-form-model-item>
-
-        <a-form-model-item label="手机号码" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="phone">
-          <a-input placeholder="请输入手机号码" v-model="model.phone" />
         </a-form-model-item>
 
         <a-form-model-item label="座机" :labelCol="labelCol" :wrapperCol="wrapperCol" prop="telephone">
@@ -162,17 +162,17 @@
         dateFormat:"YYYY-MM-DD",
         validatorRules:{
           username:[{required: true, message: '请输入用户账号!'},
-                    {validator: this.validateUsername,}],
+            {validator: this.validateUsername,}],
           password: [{required: true,pattern:/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,message: '密码由8位数字、大小写字母和特殊符号组成!'},
-                     {validator: this.validateToNextPassword,trigger: 'change'}],
+            {validator: this.validateToNextPassword,trigger: 'change'}],
           confirmpassword: [{required: true, message: '请重新输入登录密码!',},
-                            { validator: this.compareToFirstPassword,}],
+            { validator: this.compareToFirstPassword,}],
           realname:[{ required: true, message: '请输入用户名称!' }],
           phone: [{required: true, message: '请输入手机号!'}, {validator: this.validatePhone}],
           email: [{validator: this.validateEmail}],
           roles:{},
           workNo:[ { required: true, message: '请输入工号' },
-                  { validator: this.validateWorkNo }],
+            { validator: this.validateWorkNo }],
           telephone: [{ pattern: /^0\d{2,3}-[1-9]\d{6,7}$/, message: '请输入正确的座机号码' },]
         },
         departIdShow:false,
@@ -441,11 +441,11 @@
         };
         duplicateCheck(params).then((res) => {
           if (res.success) {
-          callback()
-        } else {
-          callback("用户名已存在!")
-        }
-      })
+            callback()
+          } else {
+            callback("用户名已存在!")
+          }
+        })
       },
       validateWorkNo(rule, value, callback){
         var params = {
@@ -476,9 +476,9 @@
       },
       identityChange(e){
         if(e.target.value===1){
-            this.departIdShow=false;
+          this.departIdShow=false;
         }else{
-            this.departIdShow=true;
+          this.departIdShow=true;
         }
       }
     }
@@ -507,7 +507,7 @@
 
   .drawer-bootom-button {
     position: absolute;
-    bottom: -8px;
+    bottom: 0;
     width: 100%;
     border-top: 1px solid #e8e8e8;
     padding: 10px 16px;
@@ -516,4 +516,10 @@
     background: #fff;
     border-radius: 0 0 2px 2px;
   }
+
+  /*【JTC-502】 添加用户两个滚动条*/
+  /deep/ .ant-drawer-body {
+    padding-bottom: 53px;
+  }
+
 </style>

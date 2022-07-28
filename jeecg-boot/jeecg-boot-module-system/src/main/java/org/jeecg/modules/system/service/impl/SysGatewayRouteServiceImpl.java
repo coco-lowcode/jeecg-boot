@@ -8,7 +8,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.base.BaseMap;
 import org.jeecg.common.constant.CacheConstant;
+import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.constant.GlobalConstants;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.system.entity.SysGatewayRoute;
 import org.jeecg.modules.system.mapper.SysGatewayRouteMapper;
 import org.jeecg.modules.system.service.ISysGatewayRouteService;
@@ -34,17 +36,18 @@ public class SysGatewayRouteServiceImpl extends ServiceImpl<SysGatewayRouteMappe
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    private static final String STRING_STATUS = "status";
 
     @Override
     public void addRoute2Redis(String key) {
-        List<SysGatewayRoute> ls = this.list(new LambdaQueryWrapper<SysGatewayRoute>().eq(SysGatewayRoute::getStatus, 1));
+        List<SysGatewayRoute> ls = this.list(new LambdaQueryWrapper<SysGatewayRoute>());
         redisTemplate.opsForValue().set(key, JSON.toJSONString(ls));
     }
 
     @Override
     public void deleteById(String id) {
         this.removeById(id);
-        this.resreshRouter();
+        this.resreshRouter(id);
     }
 
     @Override
@@ -54,7 +57,14 @@ public class SysGatewayRouteServiceImpl extends ServiceImpl<SysGatewayRouteMappe
         try {
             json = json.getJSONObject("router");
             String id = json.getString("id");
-            SysGatewayRoute route = getById(id);
+            //update-begin-author:taoyan date:20211025 for: oracle路由网关新增小bug /issues/I4EV2J
+            SysGatewayRoute route;
+            if(oConvertUtils.isEmpty(id)){
+                route = new SysGatewayRoute();
+            }else{
+                route = getById(id);
+            }
+            //update-end-author:taoyan date:20211025 for: oracle路由网关新增小bug /issues/I4EV2J
             if (ObjectUtil.isEmpty(route)) {
                 route = new SysGatewayRoute();
             }
@@ -67,16 +77,16 @@ public class SysGatewayRouteServiceImpl extends ServiceImpl<SysGatewayRouteMappe
             }
             route.setFilters(filters);
             route.setUri(json.getString("uri"));
-            if (json.get("status") == null) {
+            if (json.get(STRING_STATUS) == null) {
                 route.setStatus(1);
             } else {
-                route.setStatus(json.getInteger("status"));
+                route.setStatus(json.getInteger(STRING_STATUS));
             }
             this.saveOrUpdate(route);
-            resreshRouter();
+            resreshRouter(null);
         } catch (Exception e) {
             log.error("路由配置解析失败", e);
-            resreshRouter();
+            resreshRouter(null);
             e.printStackTrace();
         }
     }
@@ -84,11 +94,12 @@ public class SysGatewayRouteServiceImpl extends ServiceImpl<SysGatewayRouteMappe
     /**
      * 更新redis路由缓存
      */
-    private void resreshRouter() {
+    private void resreshRouter(String delRouterId) {
         //更新redis路由缓存
         addRoute2Redis(CacheConstant.GATEWAY_ROUTES);
         BaseMap params = new BaseMap();
-        params.put(GlobalConstants.HANDLER_NAME, "loderRouderHandler");
+        params.put(GlobalConstants.HANDLER_NAME, GlobalConstants.LODER_ROUDER_HANDLER);
+        params.put("delRouterId", delRouterId);
         //刷新网关
         redisTemplate.convertAndSend(GlobalConstants.REDIS_TOPIC_NAME, params);
     }

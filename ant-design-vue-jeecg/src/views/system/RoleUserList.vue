@@ -124,7 +124,7 @@
             <a-menu slot="overlay">
               <a-menu-item key="1" @click="batchDel2">
                 <a-icon type="delete"/>
-                删除
+                取消关联
               </a-menu-item>
             </a-menu>
             <a-button style="margin-left: 8px"> 批量操作
@@ -160,8 +160,8 @@
             </a>
             <a-menu slot="overlay">
               <a-menu-item>
-                <a-popconfirm title="确定删除吗?" @confirm="() => handleDelete2(record.id)">
-                  <a>删除</a>
+                <a-popconfirm title="确定取消关联吗?" @confirm="() => handleDelete2(record.id)">
+                  <a>取消关联</a>
                 </a-popconfirm>
               </a-menu-item>
             </a-menu>
@@ -452,7 +452,7 @@
           var that = this
           console.log(this.currentDeptId)
           this.$confirm({
-            title: '确认删除',
+            title: '确认取消关联',
             content: '是否删除选中数据?',
             onOk: function() {
               deleteAction(that.url.deleteBatch2, { roleId: that.currentRoleId, userIds: ids }).then((res) => {
@@ -537,6 +537,7 @@
   }
 </script>
 <style scoped>
+@import '~@assets/less/common.less';
   /** Button按钮间距 */
   .ant-btn {
     margin-left: 8px

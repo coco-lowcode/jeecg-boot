@@ -28,6 +28,9 @@
       </template>
       <!-- update-end-author:taoyan date:20201221 for:此处删掉transition标签 不知道为什么加上后 页面路由切换的时候即1及菜单切到2及菜单的时候 两个菜单页面会同时出现300-500秒左右 -->
     </div>
+    <!-- update-begin-author:zyf date:20211129 for:qiankun 挂载子应用盒子 -->
+    <div id="content" class="app-view-box"></div>
+    <!-- update-end-author:zyf date:20211129 for: qiankun 挂载子应用盒子-->
   </global-layout>
 </template>
 
@@ -38,6 +41,7 @@
   import { triggerWindowResizeEvent } from '@/utils/util'
   import Vue from 'vue'
   import { CACHE_INCLUDED_ROUTES } from '@/store/mutation-types'
+  import registerApps from "@/qiankun";
 
   const indexKey = '/dashboard/analysis'
 
@@ -66,7 +70,9 @@
     /* update_begin author:wuxianquan date:20190828 for: 关闭当前tab页，供子页面调用 ->望菜单能配置外链，直接弹出新页面而不是嵌入iframe #428 */
     provide(){
       return{
-        closeCurrent:this.closeCurrent
+        closeCurrent:this.closeCurrent,
+        changeTitle: this.changeTitle,
+        changeTabTitle: this.changeTabTitle,
       }
     },
     /* update_end author:wuxianquan date:20190828 for: 关闭当前tab页，供子页面调用->望菜单能配置外链，直接弹出新页面而不是嵌入iframe #428 */
@@ -92,6 +98,14 @@
       this.activePage = currentRoute.fullPath
     },
     mounted() {
+      if (process.env.VUE_APP_QIANKUN == 'true') {
+        //update-begin-author:zyf date:20211129 for:qiankun 注册子应用
+        if (!window.qiankunStarted) {
+          window.qiankunStarted = true;
+          registerApps();
+        }
+        //update-end-author:zyf date:20211129 for:qiankun 注册子应用
+      }
     },
     watch: {
       '$route': function(newRoute) {
@@ -164,6 +178,10 @@
       // update-end-author:sunjianlei date:20191223 for: 修复从单页模式切换回多页模式后首页不居第一位的 BUG
 
       // update-begin-author:sunjianlei date:20200120 for: 动态更改页面标题
+      /**
+       * 修改当前页面的窗口标题
+       * @param title 要修改的新标题
+       */
       changeTitle(title) {
         let projectTitle = "Jeecg-Boot 企业级低代码平台"
         // 首页特殊处理
@@ -171,6 +189,19 @@
           document.title = projectTitle
         } else {
           document.title = title + ' · ' + projectTitle
+        }
+      },
+      /**
+       * 修改tab标签的标题
+       * @param title 要修改的新标题
+       * @param fullPath 要修改的路由全路径，如果不填就是修改当前路由
+       */
+      changeTabTitle(title, fullPath = '') {
+        if (title) {
+          let currentRoute = this.pageList.find((r) => r.fullPath === (fullPath ? fullPath : this.$route.fullPath))
+          if (currentRoute != null) {
+            currentRoute.meta = {...currentRoute.meta, title}
+          }
         }
       },
       // update-end-author:sunjianlei date:20200120 for: 动态更改页面标题
@@ -219,9 +250,19 @@
             cacheRouterArray.splice(cacheRouterArray.findIndex(item => item === componentName), 1)
             Vue.ls.set(CACHE_INCLUDED_ROUTES, cacheRouterArray)
           }
+          this.emitPageClosed(removeRoute[0])
         }
         //update-end--Author:scott  Date:20201015 for：路由缓存问题，关闭了tab页时再打开就不刷新 #842
 
+      },
+      // 触发 page-closed （页面关闭）全局事件
+      emitPageClosed(closedRoute) {
+        this.$root.$emit('page-closed', {
+          closedRoute,
+          pageList: this.pageList,
+          linkList: this.linkList,
+          activePage: this.activePage
+        })
       },
       onContextmenu(e) {
         const pagekey = this.getPageKey(e.target)
